@@ -8,7 +8,7 @@ import recursiveReaddir from 'recursive-readdir';
 
 import { writeFile, readFile } from './async-fs';
 import { hasFileExtension, replaceFileExtension } from './file-extension';
-import { FileFilterList, matchesFileFilterList } from './file-filter-list';
+import { FileFilterList, matchesFileFilterList } from './file-filter';
 import { flattenArray } from './utils';
 
 type Encoding = 'utf8' | null;

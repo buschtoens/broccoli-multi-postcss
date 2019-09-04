@@ -11,7 +11,7 @@
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
-    "typeRoots": ["./types"],
+    "typeRoots": ["./node_modules/@types", "./types"],
     "esModuleInterop": true
   }
 }
