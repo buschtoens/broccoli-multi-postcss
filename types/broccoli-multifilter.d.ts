@@ -1,7 +1,8 @@
 import BroccoliPlugin, { BroccoliNode } from 'broccoli-plugin';
 
 interface BroccoliMultifilterOptions {
-  annotation: string;
+  name?: string;
+  annotation?: string;
 }
 
 /**
