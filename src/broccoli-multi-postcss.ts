@@ -1,19 +1,21 @@
 import { cpus } from 'os';
-import { join, delimiter as pathDelimiter } from 'path';
+import { join, delimiter as pathDelimiter, relative } from 'path';
 
 import BroccoliMultifilter from 'broccoli-multifilter';
 import { BroccoliNode, BroccoliPluginOptions } from 'broccoli-plugin';
-import { Plugin, ProcessOptions } from 'postcss';
+import postcss, { Plugin, ProcessOptions, Processor } from 'postcss';
 import recursiveReaddir from 'recursive-readdir';
 
 import { writeFile, readFile } from './async-fs';
 import { hasFileExtension, replaceFileExtension } from './file-extension';
 import { FileFilterList, matchesFileFilterList } from './file-filter';
+import { isDependencyMessage, isWriteFileMessage } from './messages';
+import { FileToWrite } from './types';
 import { flattenArray } from './utils';
 
 type Encoding = 'utf8' | null;
 
-interface ObjectFormPlugin<T = Record<string, any>> {
+interface ObjectFormPlugin<T = Record<string, unknown>> {
   module: Plugin<T>;
   options?: T;
 }
@@ -136,13 +138,17 @@ const DEFAULT_OPTIONS: Required<
   })()
 };
 
-interface ProcessingResult {
-  destinationPath?: string;
+interface BroccoliMultiPostCSSProcessorOptions extends ProcessOptions {
+  readonly inputDirectory: string;
+  readonly inputDirectories: readonly string[];
+  readonly absolutePath: string;
 }
 
-class BroccoliMultiPostCSS extends BroccoliMultifilter {
+export class BroccoliMultiPostCSS extends BroccoliMultifilter {
   protected readonly options: BroccoliMultiPostCSSOptions &
     typeof DEFAULT_OPTIONS;
+
+  private readonly processor: Processor;
 
   private readonly matchesIncludeList?: (fileName: string) => boolean;
   private readonly matchesExcludeList?: (fileName: string) => boolean;
@@ -158,6 +164,10 @@ class BroccoliMultiPostCSS extends BroccoliMultifilter {
       throw new TypeError(
         `You must provide at least one plugin to the 'plugins' array`
       );
+
+    this.processor = postcss(
+      this.options.plugins.map(plugin => plugin.module(plugin.options))
+    );
 
     if (this.options.include)
       this.matchesIncludeList = matchesFileFilterList(this.options.include);
@@ -204,8 +214,8 @@ class BroccoliMultiPostCSS extends BroccoliMultifilter {
     return flattenArray(
       await Promise.all(
         this.inputPaths.map(async inputPath =>
-          (await recursiveReaddir(inputPath)).map(relativePath => {
-            const absolutePath = join(inputPath, relativePath);
+          (await recursiveReaddir(inputPath)).map(absolutePath => {
+            const relativePath = relative(inputPath, absolutePath);
             return {
               absolutePath,
               relativePath,
@@ -213,7 +223,9 @@ class BroccoliMultiPostCSS extends BroccoliMultifilter {
               // as tokens.
               // Ideally, we would pass the `{ absolutePath, relativePath }`
               // object.
-              tokenizedPath: `${absolutePath}${pathDelimiter}${relativePath}`
+              tokenizedPath: [absolutePath, inputPath, relativePath].join(
+                pathDelimiter
+              )
             };
           })
         )
@@ -227,50 +239,87 @@ class BroccoliMultiPostCSS extends BroccoliMultifilter {
    * This is required, because `buildAndCache` unfortunately
    */
   private destructureTokenizedPath(tokenizedPath: string) {
-    const [absolutePath, relativePath] = tokenizedPath.split(pathDelimiter, 2);
-    return { absolutePath, relativePath };
+    const [absolutePath, inputDirectory, relativePath] = tokenizedPath.split(
+      pathDelimiter,
+      3
+    );
+    return { absolutePath, inputDirectory, relativePath };
   }
 
   /**
    * Invoked to determine the destination file name for every transformed file.
-   *
-   * The default implementation first checks, whether the result has a
-   * `destinationPath` property and uses it, if present.
-   *
-   * If not, it will take the original file name and replace the file extension
-   * with `targetExtension`, if set.
-   *
+   * Takes the original file name and replaces the file extension with
+   * `targetExtension`, if set.
    * If not, it will just keep the original file name.
+   *
+   * You can also change the `opts.to` property from one of your plugins.
    */
-  protected getDestinationPath(
-    relativePath: string,
-    result: ProcessingResult
-  ): string {
-    if (result.destinationPath) return result.destinationPath;
+  protected getDestinationPath(relativePath: string): string {
     if (this.options.targetExtension)
       return replaceFileExtension(this.options.targetExtension, relativePath);
     return relativePath;
   }
 
-  protected async processFile(
+  protected getProcessOptions({
+    absolutePath,
+    inputDirectory,
+    relativePath
+  }: {
+    absolutePath: string;
+    inputDirectory: string;
+    relativePath: string;
+  }): BroccoliMultiPostCSSProcessorOptions {
+    return {
+      from: relativePath,
+      to: this.getDestinationPath(relativePath),
+      absolutePath,
+      inputDirectory,
+      inputDirectories: this.inputPaths
+    };
+  }
+
+  protected async buildFile(
     tokenizedPath: string,
     outputDirectory: string
   ): Promise<{ dependencies: string[] }> {
-    const { absolutePath, relativePath } = this.destructureTokenizedPath(
-      tokenizedPath
+    const {
+      absolutePath,
+      inputDirectory,
+      relativePath
+    } = this.destructureTokenizedPath(tokenizedPath);
+
+    const inContent = await readFile(absolutePath, this.options.inputEncoding);
+    const options = this.getProcessOptions({
+      absolutePath,
+      inputDirectory,
+      relativePath
+    });
+
+    const result = await this.processor.process(inContent, options);
+
+    if (!result.opts || !result.opts.to)
+      throw new TypeError('Missing `opts.to`.');
+
+    const additionalFiles = result.messages.filter(isWriteFileMessage);
+    const filesToWrite: FileToWrite[] = [
+      { path: result.opts.to, content: result.css },
+      ...additionalFiles
+    ];
+
+    await Promise.all(
+      filesToWrite.map(
+        async ({ path, content, encoding = this.options.outputEncoding }) => {
+          const outputPath = join(outputDirectory, path);
+          await writeFile(outputPath, content, encoding);
+        }
+      )
     );
 
-    const content = await readFile(absolutePath, this.options.inputEncoding);
+    const additionalDependencies = result.messages
+      .filter(isDependencyMessage)
+      .map(message => message.path);
 
-    const result: ProcessingResult = {};
-
-    const outputPath = join(
-      outputDirectory,
-      this.getDestinationPath(relativePath, result)
-    );
-    await writeFile(outputPath, content, this.options.outputEncoding);
-
-    return { dependencies: [absolutePath] };
+    return { dependencies: [absolutePath, ...additionalDependencies] };
   }
 
   async build(): Promise<void> {
@@ -280,9 +329,7 @@ class BroccoliMultiPostCSS extends BroccoliMultifilter {
     );
     await this.buildAndCache(
       filesToBeProcessed.map(file => file.tokenizedPath),
-      this.processFile
+      this.buildFile
     );
   }
 }
-
-export = BroccoliMultiPostCSS;

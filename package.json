@@ -7,7 +7,7 @@
   "license": "ISC",
   "main": "index.js",
   "files": [
-    "dist/broccoli-multi-postcss.js"
+    "dist"
   ],
   "scripts": {
     "lint:js": "eslint --ext ts,js .",
@@ -25,6 +25,7 @@
     "@types/jest": "^24.0.18",
     "@types/recursive-readdir": "^2.2.0",
     "babel-jest": "^24.9.0",
+    "broccoli-test-helper": "^2.0.0",
     "eslint": "^6.3.0",
     "jest": "^24.9.0",
     "ts-node": "^8.3.0",
