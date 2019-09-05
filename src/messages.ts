@@ -38,6 +38,7 @@ export function isDependencyMessage(
   if (message.type === MessageType.Dependency) {
     if (typeof message.path !== 'string' || message.path.length === 0)
       throw new TypeError(`'DependencyMessage' is missing a valid 'path'.`);
+    return true;
   }
   return false;
 }
