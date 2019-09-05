@@ -9,7 +9,11 @@ import recursiveReaddir from 'recursive-readdir';
 import { writeFile, readFile } from './async-fs';
 import { hasFileExtension, replaceFileExtension } from './file-extension';
 import { FileFilterList, matchesFileFilterList } from './file-filter';
-import { isDependencyMessage, isWriteFileMessage } from './messages';
+import {
+  isDependencyMessage,
+  isWriteFileMessage,
+  MessageType
+} from './messages';
 import { FileToWrite } from './types';
 import { flattenArray } from './utils';
 
@@ -152,6 +156,8 @@ export class BroccoliMultiPostCSS extends BroccoliMultifilter {
 
   private readonly matchesIncludeList?: (fileName: string) => boolean;
   private readonly matchesExcludeList?: (fileName: string) => boolean;
+
+  static MessageType = MessageType;
 
   constructor(
     inputNodes: BroccoliNode[] | BroccoliNode,

@@ -39,7 +39,7 @@ const myPlugin = plugin('selector-metadata', options => {
     const metadata = { selectors, fileName: result.opts.to };
 
     result.messages.push({
-      type: MessageType.WriteFile,
+      type: BroccoliMultiPostCSS.MessageType.WriteFile,
       plugin: 'selector-metadata',
       path: `${result.opts.to}.meta.json`,
       content: JSON.stringify(metadata)
