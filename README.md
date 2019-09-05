@@ -31,17 +31,17 @@ import { plugin } from 'postcss';
 
 const myPlugin = plugin('selector-metadata', options => {
   return (root, result) => {
-    const selectors = [];
+    const selectors: string[] = [];
     root.walkRules(rule => {
-      selectors.push(rule.selector)
+      selectors.push(rule.selector);
     });
 
-    const metadata = { selectors, fileName: options.to }
+    const metadata = { selectors, fileName: result.opts.to };
 
     result.messages.push({
-      type: 'broccoli-file',
+      type: MessageType.WriteFile,
       plugin: 'selector-metadata',
-      name: `${options.to}.meta.json`
+      path: `${result.opts.to}.meta.json`,
       content: JSON.stringify(metadata)
     });
   };
