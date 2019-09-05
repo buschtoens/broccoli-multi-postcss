@@ -1,10 +1,10 @@
-import { cpus } from 'os';
 import { join, delimiter as pathDelimiter, relative } from 'path';
 
 import BroccoliMultifilter from 'broccoli-multifilter';
 import { BroccoliNode, BroccoliPluginOptions } from 'broccoli-plugin';
-import postcss, { Plugin, ProcessOptions, Processor } from 'postcss';
+import postcss, { Plugin, ProcessOptions, Processor, Warning } from 'postcss';
 import recursiveReaddir from 'recursive-readdir';
+import supportsColor from 'supports-color';
 
 import { writeFile, readFile } from './async-fs';
 import { hasFileExtension, replaceFileExtension } from './file-extension';
@@ -83,14 +83,6 @@ interface BroccoliMultiPostCSSOptions
   outputEncoding?: Encoding;
 
   /**
-   * The number of operations that can be run concurrently. This overrides the
-   * value set with the `JOBS=n` environment variable.
-   *
-   * @default the number of detected CPU cores - 1, with a min of 1
-   */
-  concurrency?: number;
-
-  /**
    * The name of this plugin. Defaults to `this.constructor.name`.
    */
   // name?: BroccoliPluginOptions['name'];
@@ -100,6 +92,32 @@ interface BroccoliMultiPostCSSOptions
    * instances of the same plugin apart.
    */
   // annotation?: BroccoliPluginOptions['annotation'];
+
+  /**
+   * Whether to prettify syntax errors.
+   */
+  errors?: {
+    /**
+     * Whether to attach the source code.
+     *
+     * @default true
+     */
+    showSourceCode: boolean;
+
+    /**
+     * Whether to prettify the error with terminal colors.
+     *
+     * @default true, if the terminal supports colors
+     */
+    terminalColors: boolean;
+  };
+
+  /**
+   * Whether to log warnings.
+   *
+   * @default true
+   */
+  logWarnings?: boolean;
 
   /**
    * A list of plugin objects to be used by Postcss (a minimum of 1 plugin is
@@ -130,16 +148,11 @@ const DEFAULT_OPTIONS: Required<
   targetExtension: null,
   inputEncoding: 'utf8',
   outputEncoding: 'utf8',
-  concurrency: (() => {
-    if (process.env.JOBS) {
-      const parsed = Number.parseInt(process.env.JOBS, 10);
-      if (Number.isSafeInteger(parsed)) return parsed;
-      console.warn(
-        `JOBS='${process.env.JOBS}' was specified, but could not be parsed as an integer. Falling back to CPU count.`
-      );
-    }
-    return Math.max(1, cpus().length - 1);
-  })()
+  errors: {
+    showSourceCode: true,
+    terminalColors: supportsColor.stderr
+  },
+  logWarnings: true
 };
 
 interface BroccoliMultiPostCSSProcessorOptions extends ProcessOptions {
@@ -284,6 +297,14 @@ export class BroccoliMultiPostCSS extends BroccoliMultifilter {
     };
   }
 
+  protected handleWarnings(warnings: Warning[]) {
+    if (this.options.logWarnings) {
+      for (const warning of warnings) {
+        console.warn(warning.toString());
+      }
+    }
+  }
+
   protected async buildFile(
     tokenizedPath: string,
     outputDirectory: string
@@ -301,10 +322,26 @@ export class BroccoliMultiPostCSS extends BroccoliMultifilter {
       relativePath
     });
 
-    const result = await this.processor.process(inContent, options);
+    const result = await this.processor
+      .process(inContent, options)
+      .catch(error => {
+        if (error.name === 'CssSyntaxError') {
+          if (this.options.errors.showSourceCode) {
+            // eslint-disable-next-line no-param-reassign
+            error.message += `\n${error.showSourceCode(
+              this.options.errors.terminalColors
+            )}`;
+          }
+        }
+
+        throw error;
+      });
 
     if (!result.opts || !result.opts.to)
       throw new TypeError('Missing `opts.to`.');
+
+    // @todo: https://github.com/postcss/postcss/pull/1292
+    this.handleWarnings((result.warnings() as unknown) as Warning[]);
 
     const additionalFiles = result.messages.filter(isWriteFileMessage);
     const filesToWrite: FileToWrite[] = [
