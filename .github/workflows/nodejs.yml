@@ -3,8 +3,19 @@ name: Node CI
 on: [push]
 
 jobs:
-  build:
+  lint:
+    runs-on: ubuntu-latest
 
+    steps:
+      - uses: actions/checkout@v1
+        with:
+          fetch-depth: 1
+      - name: ESLint checks
+        uses: buschtoens/eslint-action@1.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
     runs-on: ubuntu-latest
 
     strategy:
@@ -12,16 +23,15 @@ jobs:
         node-version: [8.x, 10.x, 12.x]
 
     steps:
-    - uses: actions/checkout@v1
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v1
-      with:
-        node-version: ${{ matrix.node-version }}
-    - name: yarn install, lint, and test
-      run: |
-        yarn install --non-interactive --frozen-lockfile
-        yarn lint:js
-        yarn lint:types
-        yarn test
-      env:
-        CI: true
+      - uses: actions/checkout@v1
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v1
+        with:
+          node-version: ${{ matrix.node-version }}
+      - name: yarn install, lint, and test
+        run: |
+          yarn install --non-interactive --frozen-lockfile
+          yarn lint:types
+          yarn test
+        env:
+          CI: true
