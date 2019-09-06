@@ -340,8 +340,7 @@ export class BroccoliMultiPostCSS extends BroccoliMultifilter {
     if (!result.opts || !result.opts.to)
       throw new TypeError('Missing `opts.to`.');
 
-    // @todo: https://github.com/postcss/postcss/pull/1292
-    this.handleWarnings((result.warnings() as unknown) as Warning[]);
+    this.handleWarnings(result.warnings());
 
     const additionalFiles = result.messages.filter(isWriteFileMessage);
     const filesToWrite: FileToWrite[] = [
