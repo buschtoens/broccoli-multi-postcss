@@ -11,7 +11,7 @@ jobs:
         with:
           fetch-depth: 1
       - name: ESLint checks
-        uses: gimenete/eslint-action@1.0
+        uses: buschtoens/eslint-action@1.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 

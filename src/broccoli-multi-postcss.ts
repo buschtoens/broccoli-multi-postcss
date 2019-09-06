@@ -337,8 +337,7 @@ export class BroccoliMultiPostCSS extends BroccoliMultifilter {
         throw error;
       });
 
-    if (!result.opts || !result.opts.to)
-      throw new TypeError('Missing `opts.to`.');
+    if (!result.opts || !result.opts.to) throw new TypeError();
 
     this.handleWarnings(result.warnings());
 
