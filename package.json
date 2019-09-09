@@ -1,6 +1,6 @@
 {
   "name": "broccoli-multi-postcss",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Broccoli plugin to transform one or more input files using PostCSS to one or more output files.",
   "repository": "https://github.com/buschtoens/broccoli-multi-postcss",
   "author": "Jan Buschtöns <jan@buschtoens.me>",
