@@ -1,7 +1,8 @@
-import { join, delimiter as pathDelimiter, relative } from 'path';
+import { join, delimiter as pathDelimiter, relative, dirname } from 'path';
 
 import BroccoliMultifilter from 'broccoli-multifilter';
 import { BroccoliNode, BroccoliPluginOptions } from 'broccoli-plugin';
+import makeDir from 'make-dir';
 import postcss, { Plugin, ProcessOptions, Processor, Warning } from 'postcss';
 import recursiveReaddir from 'recursive-readdir';
 import supportsColor from 'supports-color';
@@ -352,6 +353,7 @@ export class BroccoliMultiPostCSS extends BroccoliMultifilter {
       filesToWrite.map(
         async ({ path, content, encoding = this.options.outputEncoding }) => {
           const outputPath = join(outputDirectory, path);
+          await makeDir(dirname(outputPath));
           await writeFile(outputPath, content, encoding);
         }
       )

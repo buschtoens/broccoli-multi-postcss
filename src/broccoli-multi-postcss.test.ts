@@ -35,8 +35,10 @@ describe('BroccoliMultiPostCSS', () => {
     const builder = createBuilder(tree);
     await builder.build();
     expect(builder.read()).toEqual({
-      'foo.css': '.test {\n}\n',
-      'foo.css.meta.json': '{"selectors":[".test"],"fileName":"foo.css"}'
+      foo: {
+        'bar.css': '.test {\n}\n',
+        'bar.css.meta.json': '{"selectors":[".test"],"fileName":"foo/bar.css"}'
+      }
     });
     await builder.dispose();
   });
