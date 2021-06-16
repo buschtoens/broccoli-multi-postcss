@@ -32,7 +32,7 @@
     "eslint": "^6.3.0",
     "jest": "^24.9.0",
     "ts-node": "^8.3.0",
-    "typescript": "^3.6.2"
+    "typescript": "^3.9.10"
   },
   "dependencies": {
     "broccoli-multifilter": "^2.0.0",
